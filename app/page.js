@@ -1,6 +1,14 @@
 import { supabase } from "../lib/supabase";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const { data: ships } = await supabase.from("ships").select("*");
   const { data: usage } = await supabase.from("usage_logs").select("*");
 
