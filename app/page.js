@@ -1,13 +1,29 @@
+"use client";
+
 import { supabase } from "../lib/supabase";
-import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default async function Home() {
+export default function Home() {
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  if (!user) {
-    redirect("/login");
-  }
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+      } else {
+        setLoading(false);
+      }
+    };
+
+    checkUser();
+  }, []);
+
+  if (loading) return null;
 
   const { data: ships } = await supabase.from("ships").select("*");
   const { data: usage } = await supabase.from("usage_logs").select("*");
