@@ -1,0 +1,179 @@
+import { supabase } from "../lib/supabase";
+
+export default async function Home() {
+  const { data: ships } = await supabase.from("ships").select("*");
+  const { data: usage } = await supabase.from("usage_logs").select("*");
+
+  const SELL_PER_GB = 6.5;
+
+  const totalPurchased = usage?.reduce((sum, u) => sum + (u.month_subscription_addon_gb || 0), 0) || 0;
+  const totalUsed = usage?.reduce((sum, u) => sum + (u.used_gb || 0), 0) || 0;
+  const totalSold = usage?.reduce((sum, u) => sum + (u.sold_gb || 0), 0) || 0;
+
+  const revenue = totalSold * SELL_PER_GB;
+
+  const BASE_GB = 50;
+  const BASE_COST = 260;
+  const ADDON_GB = 50;
+  const ADDON_COST = 104;
+
+  // ✅ NEUE COST LOGIK (GB GENAU)
+  const calculateCost = (capacity) => {
+    if (capacity === 0) return 0;
+
+    let cost = 0;
+
+    const baseGB = Math.min(capacity, BASE_GB);
+    cost += baseGB * (BASE_COST / BASE_GB);
+
+    if (capacity > BASE_GB) {
+      const extraGB = capacity - BASE_GB;
+      cost += extraGB * (ADDON_COST / ADDON_GB);
+    }
+
+    return cost;
+  };
+
+  const totalCost = usage?.reduce((sum, u) => {
+    return sum + calculateCost(u.month_subscription_addon_gb || 0);
+  }, 0) || 0;
+
+  const usageRatio = totalSold > 0 ? totalUsed / totalSold : 0;
+
+  const totalHardwareCost = ships?.reduce((sum, ship) => sum + (ship.hardware_cost || 0), 0) || 0;
+
+  const totalFixedCost = totalCost + totalHardwareCost;
+
+  const realProfit = revenue - totalFixedCost;
+
+  const breakEvenReached = revenue >= totalFixedCost;
+  const remainingToBreakEven = totalFixedCost - revenue;
+  const breakEvenGB = totalFixedCost / SELL_PER_GB;
+
+  const shipStats = ships?.map((ship) => {
+    const shipUsage = usage?.filter(u => u.ship_id === ship.id) || [];
+
+    const shipSold = shipUsage.reduce((sum, u) => sum + (u.sold_gb || 0), 0);
+    const shipUsed = shipUsage.reduce((sum, u) => sum + (u.used_gb || 0), 0);
+
+    const shipRevenue = shipSold * SELL_PER_GB;
+
+    // ✅ gleiche neue Logik hier verwendet
+    const shipCost = shipUsage.reduce((sum, u) => {
+      return sum + calculateCost(u.month_subscription_addon_gb || 0);
+    }, 0);
+
+    const shipTotalCost = shipCost + (ship.hardware_cost || 0);
+    const shipRealProfit = shipRevenue - shipTotalCost;
+    const shipUsageRatio = shipSold > 0 ? shipUsed / shipSold : 0;
+    const breakEven = shipRevenue >= shipTotalCost;
+
+    let alert = "🟢 Good";
+
+    if (shipUsageRatio > 0.8) alert = "🔴 High Usage Risk";
+    else if (shipUsageRatio > 0.5) alert = "🟡 Medium Usage";
+
+    if (shipRealProfit < 0) alert = "❌ Not Profitable";
+    if (shipSold < 20) alert = "⚠️ Low Sales";
+
+    return {
+      ...ship,
+      shipSold,
+      shipUsed,
+      shipRevenue,
+      shipRealProfit,
+      shipUsageRatio,
+      breakEven,
+      alert
+    };
+  }) || [];
+
+  const rankedShips = [...shipStats].sort((a, b) => b.shipRealProfit - a.shipRealProfit);
+
+  return (
+    <main
+      className="p-10 text-white min-h-screen bg-cover bg-center relative"
+      style={{ backgroundImage: "url('/ocean_bg.jpg')" }}
+    >
+      <div className="absolute inset-0 bg-black/15"></div>
+
+      <div className="relative z-10">
+        <h1 className="text-3xl font-bold mb-6 text-blue-900">
+          CrewOceanLink Dashboard
+        </h1>
+
+        <div className="grid grid-cols-11 gap-4 mb-8">
+          {[
+            { label: "Monthly Subscription + Add on / GB", value: totalPurchased },
+            { label: "Voucher Sold in GB", value: totalSold },
+            { label: "Used GB (End User Consumption)", value: totalUsed },
+            { label: "Revenue", value: `$${revenue.toFixed(2)}` },
+            { label: "Cost", value: `$${totalCost.toFixed(2)}` },
+            { label: "Hardware Cost", value: `$${totalHardwareCost.toFixed(2)}` },
+            { label: "Real Profit", value: `$${realProfit.toFixed(2)}`, highlight: true },
+            { label: "Usage Ratio", value: `${(usageRatio * 100).toFixed(1)}%` },
+            { label: "Break-even", value: breakEvenReached ? "🟢 YES" : "🔴 NO", highlight: true },
+            { label: "Missing $", value: breakEvenReached ? "0" : `$${remainingToBreakEven.toFixed(2)}` },
+            { label: "Break-even GB", value: breakEvenGB.toFixed(1) }
+          ].map((item, i) => (
+            <div
+              key={i}
+              className={`
+                p-4 rounded flex flex-col text-center
+                backdrop-blur-md bg-blue-900/60 border border-white/10
+                transition-all duration-200 hover:scale-[1.03] hover:shadow-xl hover:shadow-blue-500/10
+                ${item.highlight ? "border-2 border-white/30 bg-blue-800/70" : ""}
+              `}
+            >
+              <div className="h-14 flex items-center justify-center">
+                <p className="text-sm text-white/70">{item.label}</p>
+              </div>
+
+              <div className="border-t border-white/20 my-2"></div>
+
+              <h2
+                className={`text-2xl font-bold ${
+                  item.label === "Real Profit"
+                    ? realProfit >= 0
+                      ? "text-green-400"
+                      : "text-red-400"
+                    : ""
+                }`}
+              >
+                {item.value}
+              </h2>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-blue-900/60 backdrop-blur-md border border-white/10 p-4 rounded">
+          <h2 className="text-xl mb-4">Ships Ranking</h2>
+
+          {rankedShips.map((ship, index) => (
+            <div key={ship.id} className="border-b border-white/10 py-3">
+              <p className="font-bold text-lg">
+                #{index + 1} - {ship.name}
+              </p>
+
+              <div className="text-sm mt-2 grid grid-cols-5 gap-2 text-white/80">
+                <p>Sold: {ship.shipSold} GB</p>
+                <p>Used: {ship.shipUsed} GB</p>
+                <p>Revenue: ${ship.shipRevenue.toFixed(2)}</p>
+                <p>Real Profit: ${ship.shipRealProfit.toFixed(2)}</p>
+                <p>Usage: {(ship.shipUsageRatio * 100).toFixed(1)}%</p>
+              </div>
+
+              <div className="text-sm mt-1">
+                <p>
+                  {ship.breakEven ? "🟢 Profitable" : "🔴 Not profitable"}
+                </p>
+                <p className="font-bold mt-1">{ship.alert}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </main>
+  );
+}
