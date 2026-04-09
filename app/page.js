@@ -7,26 +7,33 @@ import { useRouter } from "next/navigation";
 export default function Home() {
 
   const [loading, setLoading] = useState(true);
+  const [ships, setShips] = useState([]);
+  const [usage, setUsage] = useState([]);
   const router = useRouter();
 
   useEffect(() => {
-    const checkUser = async () => {
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
         router.push("/login");
-      } else {
-        setLoading(false);
+        return;
       }
+
+      // 🔥 DATEN HIER LADEN (FIX)
+      const { data: shipsData } = await supabase.from("ships").select("*");
+      const { data: usageData } = await supabase.from("usage_logs").select("*");
+
+      setShips(shipsData || []);
+      setUsage(usageData || []);
+
+      setLoading(false);
     };
 
-    checkUser();
+    init();
   }, []);
 
   if (loading) return null;
-
-  const { data: ships } = await supabase.from("ships").select("*");
-  const { data: usage } = await supabase.from("usage_logs").select("*");
 
   const SELL_PER_GB = 6.5;
 
@@ -41,7 +48,6 @@ export default function Home() {
   const ADDON_GB = 50;
   const ADDON_COST = 104;
 
-  // ✅ NEUE COST LOGIK (GB GENAU)
   const calculateCost = (capacity) => {
     if (capacity === 0) return 0;
 
@@ -82,7 +88,6 @@ export default function Home() {
 
     const shipRevenue = shipSold * SELL_PER_GB;
 
-    // ✅ gleiche neue Logik hier verwendet
     const shipCost = shipUsage.reduce((sum, u) => {
       return sum + calculateCost(u.month_subscription_addon_gb || 0);
     }, 0);
