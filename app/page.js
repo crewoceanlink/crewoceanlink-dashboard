@@ -13,6 +13,15 @@ export default function Home() {
 
   useEffect(() => {
     const init = async () => {
+
+      // 🔥 MAGIC LINK / RECOVERY FIX
+      const hash = window.location.hash;
+      if (hash && hash.includes("access_token")) {
+        await supabase.auth.exchangeCodeForSession(window.location.href);
+        window.location.href = "/";
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
@@ -20,7 +29,6 @@ export default function Home() {
         return;
       }
 
-      // 🔥 DATEN HIER LADEN (FIX)
       const { data: shipsData } = await supabase.from("ships").select("*");
       const { data: usageData } = await supabase.from("usage_logs").select("*");
 
