@@ -78,12 +78,11 @@ export default function Home() {
     const rawProfit = shipRevenue - shipCost;
     const yourProfit = getYourShare(ship.model, rawProfit);
 
-    const hardware = ship.hardware_cost || 0;
-
-    const shipRealProfit = yourProfit - hardware;
+    const shipTotalCost = yourProfit + (ship.hardware_cost || 0);
+    const shipRealProfit = yourProfit - (ship.hardware_cost || 0);
 
     const shipUsageRatio = shipSold > 0 ? shipUsed / shipSold : 0;
-    const breakEven = yourProfit >= hardware;
+    const breakEven = yourProfit >= (ship.hardware_cost || 0);
 
     let alert = "🟢 Good";
 
@@ -108,7 +107,10 @@ export default function Home() {
   const rankedShips = [...shipStats].sort((a, b) => b.shipRealProfit - a.shipRealProfit);
 
   return (
-    <main className="p-10 text-white min-h-screen bg-cover bg-center relative" style={{ backgroundImage: "url('/ocean_bg.jpg')" }}>
+    <main
+      className="p-10 text-white min-h-screen bg-cover bg-center relative"
+      style={{ backgroundImage: "url('/ocean_bg.jpg')" }}
+    >
       <div className="absolute inset-0 bg-black/15"></div>
 
       <div className="relative z-10">
@@ -133,16 +135,16 @@ export default function Home() {
             const rawProfit = revenue - totalCost;
             const yourProfit = getYourShare(ship.model, rawProfit);
 
-            const hardware = ship.hardware_cost || 0;
+            const totalHardwareCost = ship.hardware_cost || 0;
 
-            const realProfit = yourProfit - hardware;
+            const realProfit = yourProfit - totalHardwareCost;
 
             const usageRatio = totalSold > 0 ? totalUsed / totalSold : 0;
 
-            const breakEvenReached = yourProfit >= hardware;
-            const remainingToBreakEven = hardware - yourProfit;
+            const breakEvenReached = yourProfit >= totalHardwareCost;
+            const remainingToBreakEven = totalHardwareCost - yourProfit;
 
-            // 🔥 BREAK EVEN GB
+            // ✅ BREAK EVEN LOGIK (GB + MONATE)
             const COST_PER_GB = BASE_COST / BASE_GB;
             const profitPerGB = SELL_PER_GB - COST_PER_GB;
 
@@ -154,14 +156,25 @@ export default function Home() {
             const effectiveProfitPerGB = profitPerGB * share;
 
             const breakEvenGB = effectiveProfitPerGB > 0
-              ? hardware / effectiveProfitPerGB
+              ? totalHardwareCost / effectiveProfitPerGB
               : 0;
 
-            // 🔥 NEW: PROGRESS
-            const progress = breakEvenGB > 0 ? totalSold / breakEvenGB : 0;
+            // 👉 NEU: MONATE
+            const monthlyProfit = totalSold * effectiveProfitPerGB;
 
-            // 🔥 NEW: ROI
-            const roi = hardware > 0 ? (realProfit / hardware) * 100 : 0;
+            const monthsToBreakEven = monthlyProfit > 0
+              ? totalHardwareCost / monthlyProfit
+              : 0;
+
+            // ROI
+            const roi = totalHardwareCost > 0
+              ? (realProfit / totalHardwareCost) * 100
+              : 0;
+
+            // Progress Bar
+            const progress = breakEvenGB > 0
+              ? Math.min((totalSold / breakEvenGB) * 100, 100)
+              : 0;
 
             let alert = "🟢 Good";
             if (usageRatio > 0.8) alert = "🔴 High Usage Risk";
@@ -175,49 +188,54 @@ export default function Home() {
                   🚢 {ship.name} ({ship.model})
                 </h2>
 
-                <div className="grid grid-cols-11 gap-4">
+                <div className="grid grid-cols-12 gap-4">
                   {[
                     { label: "Monthly Subscription + Add on / GB", value: totalPurchased },
                     { label: "Voucher Sold in GB", value: totalSold },
                     { label: "Used GB (End User Consumption)", value: totalUsed },
                     { label: "Revenue", value: `$${revenue.toFixed(2)}` },
                     { label: "Cost", value: `$${totalCost.toFixed(2)}` },
-                    { label: "Hardware Cost", value: `$${hardware.toFixed(2)}` },
+                    { label: "Hardware Cost", value: `$${totalHardwareCost.toFixed(2)}` },
                     { label: "Real Profit", value: `$${realProfit.toFixed(2)}` },
-                    { label: "ROI %", value: `${roi.toFixed(1)}%` }, // ✅ NEW
+                    { label: "ROI %", value: `${roi.toFixed(1)}%` },
                     { label: "Usage Ratio", value: `${(usageRatio * 100).toFixed(1)}%` },
                     { label: "Break-even", value: breakEvenReached ? "🟢 YES" : "🔴 NO" },
-                    { label: "Break-even GB", value: breakEvenGB.toFixed(1) }
+                    { label: "Break-even GB", value: breakEvenGB.toFixed(1) },
+                    { label: "Break-even Time", value: `${monthsToBreakEven.toFixed(1)} mo` }
                   ].map((item, i) => (
-                    <div key={i} className="p-4 rounded flex flex-col text-center backdrop-blur-md bg-blue-900/60 border border-white/10">
+                    <div
+                      key={i}
+                      className="p-4 rounded flex flex-col text-center backdrop-blur-md bg-blue-900/60 border border-white/10"
+                    >
                       <div className="h-14 flex items-center justify-center">
                         <p className="text-sm text-white/70">{item.label}</p>
                       </div>
 
                       <div className="border-t border-white/20 my-2"></div>
 
-                      <h2 className={`text-2xl font-bold ${
-                        item.label === "Real Profit"
-                          ? realProfit >= 0 ? "text-green-400" : "text-red-400"
-                          : ""
-                      }`}>
+                      <h2
+                        className={`text-2xl font-bold ${
+                          item.label === "Real Profit"
+                            ? realProfit >= 0
+                              ? "text-green-400"
+                              : "text-red-400"
+                            : ""
+                        }`}
+                      >
                         {item.value}
                       </h2>
                     </div>
                   ))}
                 </div>
 
-                {/* 🔥 PROGRESS BAR */}
-                <div className="mt-3">
-                  <div className="w-full bg-white/10 rounded h-3">
+                <div className="mt-2">
+                  <div className="w-full bg-white/10 rounded h-2">
                     <div
-                      className="bg-green-400 h-3 rounded"
-                      style={{ width: `${Math.min(progress * 100, 100)}%` }}
+                      className="bg-green-500 h-2 rounded"
+                      style={{ width: `${progress}%` }}
                     ></div>
                   </div>
-                  <p className="text-xs mt-1">
-                    {Math.min(progress * 100, 100).toFixed(1)}% to break-even
-                  </p>
+                  <p className="text-xs mt-1">{progress.toFixed(1)}% to break-even</p>
                 </div>
 
                 <div className="mt-2 text-sm">
