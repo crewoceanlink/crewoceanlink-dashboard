@@ -56,6 +56,14 @@ export default function Home() {
     return cost;
   };
 
+  // 🔥 MODEL LOGIC FUNCTION (UNVERÄNDERT)
+  const getYourShare = (model, profit) => {
+    if (model === "M1") return profit * 0.5;
+    if (model === "M2") return profit * 0.6;
+    if (model === "M3") return profit;
+    return profit;
+  };
+
   const shipStats = ships?.map((ship) => {
     const shipUsage = usage?.filter(u => u.ship_id === ship.id) || [];
 
@@ -68,10 +76,14 @@ export default function Home() {
       return sum + calculateCost(u.month_subscription_addon_gb || 0);
     }, 0);
 
-    const shipTotalCost = shipCost + (ship.hardware_cost || 0);
-    const shipRealProfit = shipRevenue - shipTotalCost;
+    const rawProfit = shipRevenue - shipCost;
+    const yourProfit = getYourShare(ship.model, rawProfit);
+
+    const shipTotalCost = yourProfit + (ship.hardware_cost || 0);
+    const shipRealProfit = yourProfit - (ship.hardware_cost || 0);
+
     const shipUsageRatio = shipSold > 0 ? shipUsed / shipSold : 0;
-    const breakEven = shipRevenue >= shipTotalCost;
+    const breakEven = yourProfit >= (ship.hardware_cost || 0);
 
     let alert = "🟢 Good";
 
@@ -122,19 +134,33 @@ export default function Home() {
               return sum + calculateCost(u.month_subscription_addon_gb || 0);
             }, 0);
 
+            const rawProfit = revenue - totalCost;
+            const yourProfit = getYourShare(ship.model, rawProfit);
+
             const totalHardwareCost = ship.hardware_cost || 0;
 
-            const totalFixedCost = totalCost + totalHardwareCost;
-
-            const realProfit = revenue - totalFixedCost;
+            const realProfit = yourProfit - totalHardwareCost;
 
             const usageRatio = totalSold > 0 ? totalUsed / totalSold : 0;
 
-            const breakEvenReached = revenue >= totalFixedCost;
-            const remainingToBreakEven = totalFixedCost - revenue;
-            const breakEvenGB = totalFixedCost / SELL_PER_GB;
+            const breakEvenReached = yourProfit >= totalHardwareCost;
+            const remainingToBreakEven = totalHardwareCost - yourProfit;
 
-            // ALERT LOGIC (für Anzeige unten)
+            // 🔥 FIX: BREAK EVEN GB MIT MODEL
+            const COST_PER_GB = BASE_COST / BASE_GB;
+            const profitPerGB = SELL_PER_GB - COST_PER_GB;
+
+            let share = 1;
+            if (ship.model === "M1") share = 0.5;
+            if (ship.model === "M2") share = 0.6;
+            if (ship.model === "M3") share = 1;
+
+            const effectiveProfitPerGB = profitPerGB * share;
+
+            const breakEvenGB = effectiveProfitPerGB > 0
+              ? totalHardwareCost / effectiveProfitPerGB
+              : 0;
+
             let alert = "🟢 Good";
             if (usageRatio > 0.8) alert = "🔴 High Usage Risk";
             else if (usageRatio > 0.5) alert = "🟡 Medium Usage";
@@ -143,7 +169,9 @@ export default function Home() {
 
             return (
               <div key={ship.id}>
-                <h2 className="text-xl font-bold mb-2">🚢 {ship.name}</h2>
+                <h2 className="text-xl font-bold mb-2">
+                  🚢 {ship.name} ({ship.model})
+                </h2>
 
                 <div className="grid grid-cols-11 gap-4">
                   {[
@@ -167,7 +195,6 @@ export default function Home() {
                         <p className="text-sm text-white/70">{item.label}</p>
                       </div>
 
-                      {/* ✅ DIVIDER */}
                       <div className="border-t border-white/20 my-2"></div>
 
                       <h2
@@ -185,7 +212,6 @@ export default function Home() {
                   ))}
                 </div>
 
-                {/* ✅ ALERTS UNTEN */}
                 <div className="mt-2 text-sm">
                   <p>{breakEvenReached ? "🟢 Profitable" : "🔴 Not profitable"}</p>
                   <p className="font-bold">{alert}</p>
