@@ -56,7 +56,6 @@ export default function Home() {
     return cost;
   };
 
-  // 🔥 MODEL LOGIC FUNCTION (UNVERÄNDERT)
   const getYourShare = (model, profit) => {
     if (model === "M1") return profit * 0.5;
     if (model === "M2") return profit * 0.6;
@@ -79,11 +78,12 @@ export default function Home() {
     const rawProfit = shipRevenue - shipCost;
     const yourProfit = getYourShare(ship.model, rawProfit);
 
-    const shipTotalCost = yourProfit + (ship.hardware_cost || 0);
-    const shipRealProfit = yourProfit - (ship.hardware_cost || 0);
+    const hardware = ship.hardware_cost || 0;
+
+    const shipRealProfit = yourProfit - hardware;
 
     const shipUsageRatio = shipSold > 0 ? shipUsed / shipSold : 0;
-    const breakEven = yourProfit >= (ship.hardware_cost || 0);
+    const breakEven = yourProfit >= hardware;
 
     let alert = "🟢 Good";
 
@@ -108,10 +108,7 @@ export default function Home() {
   const rankedShips = [...shipStats].sort((a, b) => b.shipRealProfit - a.shipRealProfit);
 
   return (
-    <main
-      className="p-10 text-white min-h-screen bg-cover bg-center relative"
-      style={{ backgroundImage: "url('/ocean_bg.jpg')" }}
-    >
+    <main className="p-10 text-white min-h-screen bg-cover bg-center relative" style={{ backgroundImage: "url('/ocean_bg.jpg')" }}>
       <div className="absolute inset-0 bg-black/15"></div>
 
       <div className="relative z-10">
@@ -119,7 +116,6 @@ export default function Home() {
           CrewOceanLink Dashboard
         </h1>
 
-        {/* ✅ TABLE PRO SHIP */}
         <div className="space-y-6 mb-8">
           {ships.map((ship) => {
             const shipUsage = usage?.filter(u => u.ship_id === ship.id) || [];
@@ -137,16 +133,16 @@ export default function Home() {
             const rawProfit = revenue - totalCost;
             const yourProfit = getYourShare(ship.model, rawProfit);
 
-            const totalHardwareCost = ship.hardware_cost || 0;
+            const hardware = ship.hardware_cost || 0;
 
-            const realProfit = yourProfit - totalHardwareCost;
+            const realProfit = yourProfit - hardware;
 
             const usageRatio = totalSold > 0 ? totalUsed / totalSold : 0;
 
-            const breakEvenReached = yourProfit >= totalHardwareCost;
-            const remainingToBreakEven = totalHardwareCost - yourProfit;
+            const breakEvenReached = yourProfit >= hardware;
+            const remainingToBreakEven = hardware - yourProfit;
 
-            // 🔥 FIX: BREAK EVEN GB MIT MODEL
+            // 🔥 BREAK EVEN GB
             const COST_PER_GB = BASE_COST / BASE_GB;
             const profitPerGB = SELL_PER_GB - COST_PER_GB;
 
@@ -158,8 +154,14 @@ export default function Home() {
             const effectiveProfitPerGB = profitPerGB * share;
 
             const breakEvenGB = effectiveProfitPerGB > 0
-              ? totalHardwareCost / effectiveProfitPerGB
+              ? hardware / effectiveProfitPerGB
               : 0;
+
+            // 🔥 NEW: PROGRESS
+            const progress = breakEvenGB > 0 ? totalSold / breakEvenGB : 0;
+
+            // 🔥 NEW: ROI
+            const roi = hardware > 0 ? (realProfit / hardware) * 100 : 0;
 
             let alert = "🟢 Good";
             if (usageRatio > 0.8) alert = "🔴 High Usage Risk";
@@ -180,36 +182,42 @@ export default function Home() {
                     { label: "Used GB (End User Consumption)", value: totalUsed },
                     { label: "Revenue", value: `$${revenue.toFixed(2)}` },
                     { label: "Cost", value: `$${totalCost.toFixed(2)}` },
-                    { label: "Hardware Cost", value: `$${totalHardwareCost.toFixed(2)}` },
+                    { label: "Hardware Cost", value: `$${hardware.toFixed(2)}` },
                     { label: "Real Profit", value: `$${realProfit.toFixed(2)}` },
+                    { label: "ROI %", value: `${roi.toFixed(1)}%` }, // ✅ NEW
                     { label: "Usage Ratio", value: `${(usageRatio * 100).toFixed(1)}%` },
                     { label: "Break-even", value: breakEvenReached ? "🟢 YES" : "🔴 NO" },
-                    { label: "Missing $", value: breakEvenReached ? "0" : `$${remainingToBreakEven.toFixed(2)}` },
                     { label: "Break-even GB", value: breakEvenGB.toFixed(1) }
                   ].map((item, i) => (
-                    <div
-                      key={i}
-                      className="p-4 rounded flex flex-col text-center backdrop-blur-md bg-blue-900/60 border border-white/10"
-                    >
+                    <div key={i} className="p-4 rounded flex flex-col text-center backdrop-blur-md bg-blue-900/60 border border-white/10">
                       <div className="h-14 flex items-center justify-center">
                         <p className="text-sm text-white/70">{item.label}</p>
                       </div>
 
                       <div className="border-t border-white/20 my-2"></div>
 
-                      <h2
-                        className={`text-2xl font-bold ${
-                          item.label === "Real Profit"
-                            ? realProfit >= 0
-                              ? "text-green-400"
-                              : "text-red-400"
-                            : ""
-                        }`}
-                      >
+                      <h2 className={`text-2xl font-bold ${
+                        item.label === "Real Profit"
+                          ? realProfit >= 0 ? "text-green-400" : "text-red-400"
+                          : ""
+                      }`}>
                         {item.value}
                       </h2>
                     </div>
                   ))}
+                </div>
+
+                {/* 🔥 PROGRESS BAR */}
+                <div className="mt-3">
+                  <div className="w-full bg-white/10 rounded h-3">
+                    <div
+                      className="bg-green-400 h-3 rounded"
+                      style={{ width: `${Math.min(progress * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs mt-1">
+                    {Math.min(progress * 100, 100).toFixed(1)}% to break-even
+                  </p>
                 </div>
 
                 <div className="mt-2 text-sm">
@@ -221,7 +229,6 @@ export default function Home() {
           })}
         </div>
 
-        {/* 🔒 UNVERÄNDERT */}
         <div className="bg-blue-900/60 backdrop-blur-md border border-white/10 p-4 rounded">
           <h2 className="text-xl mb-4">Ships Ranking</h2>
 
